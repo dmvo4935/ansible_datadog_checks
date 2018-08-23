@@ -1,0 +1,33 @@
+---
+
+- name: Verify docker group is present
+  shell: getent group docker
+  register: docker_grp_result
+  check_mode: no
+  ignore_errors: yes
+
+- name: Added datadog agent to docker group
+  user:
+   name: dd-agent
+   groups:
+   - docker
+   append: yes
+  when: docker_grp_result.rc == 0
+
+- name: Ensure configuration directories are present for each Datadog check
+  file:
+    dest: "/etc/datadog-agent/conf.d/{{ item }}.d"
+    state: directory
+    owner: '{{ datadog_user }}'
+    group: '{{ datadog_group }}'
+  with_items: '{{ datadog_checks|list }}'
+
+- name: Create a configuration file for each Datadog check
+  template:
+    src: checks.yaml.j2
+    dest: "/etc/datadog-agent/conf.d/{{ item }}.d/conf.yaml"
+    owner: '{{ datadog_user }}'
+    group: '{{ datadog_group }}'
+  with_items: '{{ datadog_checks|list }}'
+  notify: restart datadog-agent
+
